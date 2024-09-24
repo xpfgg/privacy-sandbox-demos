@@ -346,6 +346,15 @@ app.get('/register-trigger', async (req: Request, res: Response) => {
   res.sendStatus(200);
 });
 
+
+app.get('/use-case-1-event-level-report-register-source', async (req: Request, res: Response) => {
+  // TODO
+});
+
+app.get('/use-case-1-event-level-report-register-trigger', async (req: Request, res: Response) => {
+  // TODO
+});
+
 app.post(
   '/.well-known/attribution-reporting/debug/report-aggregate-attribution',
   async (req: Request, res: Response) => {
