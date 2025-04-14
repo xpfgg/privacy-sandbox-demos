@@ -26,12 +26,9 @@ document.addEventListener('DOMContentLoaded', () => {
   let bidChart = null;
   let allAggregatedData = {}; // Structure: { buyerId: number[], ... }
 
-  // --- CBOR Decoding Removed ---
-  // No longer needed as the server handles decoding.
-
   // --- Bucket Key Parsing ---
   /**
-   * Parses the combined bucket key (now received as a string from server)
+   * Parses the combined bucket key (received as a string from server)
    * back into buyer ID and CPM index.
    * @param {string} keyString - The combined bucket key as a string.
    * @returns {{cpmIndex: number, buyerId: number} | null} - Parsed indices or null if invalid.
@@ -76,13 +73,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     for (const report of rawReports) {
       // Access the pre-decoded contributions array added by the server
-      // Adjust path if server puts it elsewhere, e.g., report.decodedContributions
       const decodedContributions = report?.data?.decodedContributions;
 
       if (decodedContributions && Array.isArray(decodedContributions)) {
         reportsWithContributions++;
         for (const {bucket: bucketString, value} of decodedContributions) {
-          // Bucket is now a string
           // Parse the bucket string key
           const parsedKey = parseBidDensityBucketKey(bucketString);
           if (parsedKey) {
@@ -103,13 +98,18 @@ document.addEventListener('DOMContentLoaded', () => {
                   `Invalid cpmIndex ${cpmIndex} detected after parsing bucket string ${bucketString}`,
                 );
               }
+            } else {
+              console.log(
+                `Ignoring contribution from unknown/other buyer ID ${buyerId} for bucket string ${bucketString}`,
+              );
             }
-            // else { console.log(`Ignoring contribution from unknown/other buyer ID ${buyerId} for bucket string ${bucketString}`); }
+          } else {
+            console.warn('Could not parse bucket key string:', bucketString);
           }
-          // else { console.warn("Could not parse bucket key string:", bucketString); }
         }
+      } else {
+        console.log('Report skipped - no decodedContributions array found.');
       }
-      // else { console.log("Report skipped - no decodedContributions array found."); }
     }
     console.log(
       `Aggregation complete. Found ${reportsWithContributions} reports with contributions. Processed ${processedContributions} valid contributions. Final data:`,
@@ -147,7 +147,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const chartDataCounts = Array(NUM_CPM_BINS).fill(0); // Initialize counts for all bins
 
     if (selectedBuyerId === 'all') {
-      // Sum counts across all *known* buyers defined in BUYER_MAP
+      // Sum counts across all known buyers defined in BUYER_MAP
       Object.keys(BUYER_MAP).forEach((key) => {
         const buyerId = BUYER_MAP[key];
         if (allAggregatedData[buyerId]) {
@@ -272,8 +272,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Process the data (now expects pre-decoded contributions)
-    // Note: aggregateData is now synchronous as decodePayload was removed
+    // Process the data (expects pre-decoded contributions)
     aggregateData(rawReports);
 
     // Setup UI elements
