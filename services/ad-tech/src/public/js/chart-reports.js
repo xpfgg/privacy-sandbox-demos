@@ -241,52 +241,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  /**
-   * Adds event listener for the clear cache link.
-   */
-  function setupClearLink() {
-    if (clearLink) {
-      clearLink.addEventListener('click', (event) => {
-        event.preventDefault();
-        if (
-          !confirm(
-            'Are you sure you want to clear the report cache on the server?',
-          )
-        ) {
-          return;
-        }
-        console.log('Requesting report cache clear...');
-        fetch('/reporting/clear-reports', {method: 'POST'}) // Use POST or method expected by server
-          .then((response) => {
-            if (!response.ok) {
-              return response.text().then((text) => {
-                throw new Error(
-                  `Clear failed: ${response.status} ${response.statusText}. ${text || ''}`,
-                );
-              });
-            }
-            const contentType = response.headers.get('content-type');
-            if (contentType && contentType.includes('application/json')) {
-              return response.json();
-            } else {
-              return response.text();
-            }
-          })
-          .then((data) => {
-            console.log('Cache clear successful:', data);
-            alert('Cache cleared successfully! Reloading page.');
-            location.reload();
-          })
-          .catch((error) => {
-            console.error('Error clearing report cache:', error);
-            alert(`Failed to clear cache: ${error.message}`);
-          });
-      });
-    } else {
-      console.warn('Clear reports link element (#clearReportsLink) not found');
-    }
-  }
-
   // --- Main Execution ---
   /**
    * Initializes the report processing and chart rendering.
@@ -324,7 +278,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Setup UI elements
     setupFilter();
-    setupClearLink();
 
     // Render the initial chart
     renderChart('all');
