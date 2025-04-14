@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1.0" />
+  <title>Bid Rejection Chart</title>
+  <link rel="stylesheet"
+        href="/css/index.css" />
+  <link rel="icon"
+        href="/img/spy.svg" />
+  <style>
+    body { font-family: sans-serif; padding: 1em; }
+    .chart-container { max-width: 900px; margin: 20px 0; padding: 10px; border: 1px solid #ccc; }
+    .controls { margin-bottom: 20px; }
+    .controls label { margin-right: 10px; }
+    .raw-data { max-height: 200px; overflow: auto; background-color: #f0f0f0; border: 1px solid #ddd; padding: 10px; margin-top: 20px; font-size: 0.9em; }
+    pre { white-space: pre-wrap; word-wrap: break-word; } /* Make pre tag wrap */
+  </style>
+</head>
+
+<body>
+  <h1>Bid Rejection Chart</h1>
+  <div class="controls">
+      <a href="/reporting/clear-reports" id="clearReportsLink" style="margin-left: 20px;">Clear Report Cache</a>
+  </div>
+
+  <div class="chart-container" style="height: 350px">
+      <canvas id="bidRejectionChart"></canvas>
+  </div>
+
+  <h2>Raw Report Data (Input)</h2>
+  <div class="raw-data">
+      <pre id="reportData"><%- JSON.stringify(reports, null, 2) %></pre>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="/js/chart-rejection.js"></script>
+
+</body>
+</html>

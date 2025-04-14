@@ -200,3 +200,62 @@ ReportRouter.get('/chart-reports', async (req: Request, res: Response) => {
     });
   }
 });
+
+// Fetches reports, decodes payloads, and renders the chart view
+ReportRouter.get('/chart-rejection', async (req: Request, res: Response) => {
+  try {
+    const hostDetails = getEjsTemplateVariables(/* title= */ 'Rejection');
+    const rawReports = ReportStore.getAllReports();
+
+    const reportsWithDecodedData = await Promise.all(
+      rawReports.map(async (report: any) => {
+        let decodedContributions: {bucket: string; value: number}[] = [];
+        let payloadString: string | undefined = undefined;
+
+        console.log(report);
+
+        // Find payload string
+        try {
+          console.log(report.data.aggregation_service_payloads[0]);
+          payloadString =
+            report?.data?.aggregation_service_payloads?.[0]
+              ?.debug_cleartext_payload;
+          console.log(payloadString);
+        } catch (e) {
+          /* Ignore access errors */
+        }
+
+        if (typeof payloadString === 'string') {
+          try {
+            const rawContributions = await decodePayload(payloadString);
+            decodedContributions = rawContributions.map(({bucket, value}) => ({
+              bucket: bucket.toString(),
+              value: value,
+            }));
+          } catch (decodingError: any) {
+            console.error(
+              `Failed to decode payload for report: ${decodingError.message}`,
+            );
+          }
+        }
+
+        return {
+          ...report,
+          data: {...(report.data || {}), decodedContributions},
+        };
+      }),
+    );
+
+    res.render('chart-rejection', {
+      reports: reportsWithDecodedData,
+      ...hostDetails,
+    });
+  } catch (routeError: any) {
+    console.error('Error in /chart-rejection route:', routeError);
+    res.status(500).render('error', {
+      message: 'Failed to load or process reports.',
+      error: routeError,
+      ...getEjsTemplateVariables('Error'),
+    });
+  }
+});
