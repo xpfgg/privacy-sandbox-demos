@@ -313,6 +313,98 @@ function generateBid(
   const bid = getBidByAdType(auctionSignals.adType, biddingContext);
   if (bid) {
     console.info(LOG_PREFIX, 'returning bid', {bid, biddingContext});
+
+    // --- Private Aggregation Key Configuration for Bid Rejection ---
+    const REJECTION_REASON_BITS = 5n; // For baseValue: "bid-reject-reason" (0-31)
+    const CPM_INDEX_BITS = 7n; // For 100 bins (0-99)
+    const PUBLISHER_ID_BITS = 2n; // For 4 values (0-3)
+
+    // Offsets for positioning within the final key
+    const CPM_INDEX_SHIFT = REJECTION_REASON_BITS; // Starts after rejection bits = 5n
+    const PUBLISHER_ID_SHIFT = CPM_INDEX_SHIFT + CPM_INDEX_BITS; // Starts after CPM bits = 12n
+
+    // --- 1. Determine Publisher ID ---
+    const PUBLISHER_MAP = {
+      'privacy-sandbox-demos-news.dev': 1n,
+      'publisherB.com': 2n,
+      'publisherC.com': 3n,
+    };
+    const UNKNOWN_PUBLISHER_ID = 0n;
+    let publisherId = UNKNOWN_PUBLISHER_ID;
+    try {
+      console.log(JSON.stringify(browserSignals));
+      const publisherOrigin = browserSignals?.topWindowHostname;
+      if (publisherOrigin && PUBLISHER_MAP.hasOwnProperty(publisherOrigin)) {
+        publisherId = PUBLISHER_MAP[publisherOrigin];
+      }
+      // console.log('PAA: Publisher Origin:', publisherOrigin, 'Mapped ID:', publisherId);
+    } catch (e) {
+      console.error('PAA Error getting publisher ID:', e);
+    }
+
+    // --- 2. Calculate CPM Bid Index ---
+    const BID_VALUE = bid.bid; // Assuming bid.bid is the CPM value
+    const CPM_BIN_SIZE = 0.1;
+    const MAX_CPM_FOR_BINNING = 10.0;
+    // 100 bins, indices 0 to 99
+    const MAX_CPM_INDEX = BigInt(
+      Math.floor(MAX_CPM_FOR_BINNING / CPM_BIN_SIZE) - 1,
+    ); // Max index is 99n
+
+    let cpmIndex = 0n;
+    if (BID_VALUE < 0) {
+      cpmIndex = 0n; // Bin 0
+    } else if (BID_VALUE >= MAX_CPM_FOR_BINNING) {
+      cpmIndex = MAX_CPM_INDEX; // Bin 99
+    } else {
+      cpmIndex = BigInt(Math.floor(BID_VALUE / CPM_BIN_SIZE));
+    }
+    // Ensure index is within bounds [0, 99]
+    cpmIndex =
+      cpmIndex < 0n ? 0n : cpmIndex > MAX_CPM_INDEX ? MAX_CPM_INDEX : cpmIndex;
+    // console.log('PAA: Bid Value:', BID_VALUE, 'CPM Index:', cpmIndex);
+
+    // --- 3. Calculate the Offset for Private Aggregation ---
+    // The offset contains the Publisher ID and CPM Index, shifted to their final positions.
+    // The Rejection Reason (baseValue) will be added by the browser in the lowest 5 bits.
+    let offsetValue = 0n;
+    try {
+      const shiftedPublisherId = publisherId << PUBLISHER_ID_SHIFT; // Shift Pub ID to bits 12-13
+      const shiftedCpmIndex = cpmIndex << CPM_INDEX_SHIFT; // Shift CPM Index to bits 5-11
+
+      offsetValue = shiftedPublisherId | shiftedCpmIndex; // Combine them
+      // console.log(`PAA: Offset - PubID ${publisherId}<<${PUBLISHER_ID_SHIFT}=${shiftedPublisherId}, CPMIdx ${cpmIndex}<<${CPM_INDEX_SHIFT}=${shiftedCpmIndex}, Combined Offset=0x${offsetValue.toString(16)} (${offsetValue})`);
+    } catch (e) {
+      console.error('PAA Error calculating offset:', e);
+      // offsetValue remains 0n, leading to a potentially less useful report on error
+    }
+
+    // --- 4. Contribute to Histogram on Loss Event ---
+    try {
+      if (privateAggregation.contributeToHistogramOnEvent) {
+        privateAggregation.enableDebugMode({debugKey: 1234n});
+        privateAggregation.contributeToHistogramOnEvent(
+          'reserved.loss', // Event triggers if this bid loses
+          {
+            bucket: {
+              // baseValue provides the lowest bits (Rejection Reason)
+              baseValue: 'bid-reject-reason',
+              // offset provides the higher bits (CPM Index, Publisher ID) pre-shifted
+              offset: offsetValue,
+            },
+            value: 1, // Count each loss event
+          },
+        );
+        // console.log(`PAA: Registered contribution for reserved.loss. Offset: 0x${offsetValue.toString(16)}`);
+      } else {
+        console.warn(
+          'PAA: privateAggregation.contributeToHistogramOnEvent not available.',
+        );
+      }
+    } catch (error) {
+      console.error('PAA: Error calling contributeToHistogramOnEvent:', error);
+    }
+
     return bid;
   } else {
     console.warn(LOG_PREFIX, 'did not generate bid', {biddingContext});
